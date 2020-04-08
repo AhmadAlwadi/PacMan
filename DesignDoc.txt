@@ -1,0 +1,38 @@
+===========================List Of Libraries To Use============================
+	--> Pygame 
+	--> Random
+	--> Time
+	--> Sys
+	--> Math
+	--> Json
+==================================End Of List==================================
+
+===============================Initial Thoughts================================
+--> I will have a player class which represents the pacman;
+--> I will have a ghost class which represents the ghosts;
+--> I will have a pac-dot class which represents the Pac-Dots and draws them to
+	each frame;
+--> I will have a wall class which draws the the walls of each level;
+--> I will have a function that calculates the distance between any two entites
+	that being either the PacMan and Ghost or PacMan and Pac-Dot;
+--> I will have a list holding the parameters of the walls, stored in a json
+	file for each level;
+--> I will have a resources folder that will hold all the images that I will 
+	use, such as PacMan and Pac-Dot images;
+--> I will change the image of the PacMan (mouth open and mouth closed) every 
+	30 frames;
+--> I will have a global varaible "Score" that is updated everytime the player
+	eats a Pac-Dot;
+--> I will have a function that blits text on the screen;
+===============================End Of Thoughts=================================
+
+=================================Class Design==================================
+PacMan class:
+	Inside the __init__ function:
+		--> Position of PacMan in a tupule
+Wall class:
+
+Ghost class:
+
+=============================End Of Class Design===============================
+
