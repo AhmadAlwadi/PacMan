@@ -29,23 +29,28 @@ WallCoords = []
 xChange = 0
 yChange = 0
 WallCoords = []
+Frame = 0 
 
 # The PacMan class 
 class PacMan(pygame.sprite.Sprite):
-	def __init__(self):
+	def __init__(self, x, y):
 		pygame.sprite.Sprite.__init__(self)
 
 		self.image = pygame.image.load('Resources/PacManOpenMouth.png')
-		self.image = pygame.transform.scale(self.image, (30, 30))
+		self.image = pygame.transform.scale(self.image, (32, 32))
 
 		self.rect = self.image.get_rect()
-		self.rect.center = (290, 570)
+		self.rect.top = y
+		self.rect.left = x
+		self.prev_x = x
+		self.prev_y = y
 
 		self.position = (self.rect.x, self.rect.y)
 
 		self.direction = 'Left'
 
 	def update(self, WallCoords, gate):
+
 		# Making a backup of the values
 		self.CurrentX = self.rect.left
 		self.CurrentY = self.rect.top
@@ -71,13 +76,15 @@ class PacMan(pygame.sprite.Sprite):
 				# Reset the y axis on the pacman
 				self.rect.top = self.CurrentY
 
-		'''if gate != False:
+		if gate != False:
 			gate_hit = pygame.sprite.spritecollide(self, gate, False)
 			if gate_hit:
 				self.rect.left = self.CurrentX
-				self.rect.top = self.CurrentY'''
+				self.rect.top = self.CurrentY
 
-class Ghost(pygame.sprite.Sprite):
+
+
+class Ghost(PacMan):
 	def __init__(self, name, coord):
 		pygame.sprite.Sprite.__init__(self)
 
@@ -88,6 +95,9 @@ class Ghost(pygame.sprite.Sprite):
 		self.rect = self.image.get_rect()
 		self.rect.x = coord[0]
 		self.rect.y = coord[1]
+
+	def GetPath(self):
+		PathList = AStarAlgo()
 
 
 # This class to blit text on screen
@@ -224,8 +234,126 @@ def CalcRota(pacman, NextDir):
 
 	pacman.image = pygame.transform.rotate(pacman.image, rotation)
 
+
+# ALL THE PATHFINDING ALGORITHM CODE SHOULD GO HERE 
+
+# First of all I have to change the coordinates into an A* friendly format
+def MakeWallAStar(arr):
+	ScreenArr = [[0 for j in range(0, 606)] for i in range(0, 606)]
+
+	x1, x2, y1, y2 = 0, 0, 0, 0
+	for z in arr:
+		print(z)
+		x1, y1, x2, y2 = z[0], z[1], z[2], z[3]
+		for i in range(x1, x2):
+			for j in range(y1, y2):
+				ScreenArr[i][j] = 1
+
+	f = open("Pixels.txt", "w")
+	for i in ScreenArr:
+		f.write(str(i))
+
+
+
+class Node():
+	"""A node class for A* Pathfinding"""
+
+	def __init__(self, parent=None, position=None):
+		self.parent = parent
+		self.position = position
+
+		self.g = 0
+		self.h = 0
+		self.f = 0
+
+	def __eq__(self, other):
+		return self.position == other.position
+
+def AStarAlgo(maze, start, end):
+	"""Returns a list of tuples as a path from the given start to the given end in the given maze"""
+
+	# Create start and end node
+	start_node = Node(None, start)
+	start_node.g = start_node.h = start_node.f = 0
+	end_node = Node(None, end)
+	end_node.g = end_node.h = end_node.f = 0
+
+	# Initialize both open and closed list
+	open_list = []
+	closed_list = []
+
+	# Add the start node
+	open_list.append(start_node)
+
+	# Loop until you find the end
+	while len(open_list) > 0:
+
+		# Get the current node
+		current_node = open_list[0]
+		current_index = 0
+		for index, item in enumerate(open_list):
+			if item.f < current_node.f:
+				current_node = item
+				current_index = index
+
+		# Pop current off open list, add to closed list
+		open_list.pop(current_index)
+		closed_list.append(current_node)
+
+		# Found the goal
+		if current_node == end_node:
+			path = []
+			current = current_node
+			while current is not None:
+				path.append(current.position)
+				current = current.parent
+			return path[::-1] # Return reversed path
+
+		# Generate children
+		children = []
+		for new_position in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]: # Adjacent squares
+
+			# Get node position
+			node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
+
+			# Make sure within range
+			if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (len(maze[len(maze)-1]) -1) or node_position[1] < 0:
+				continue
+
+			# Make sure walkable terrain
+			if maze[node_position[0]][node_position[1]] != 0:
+				continue
+
+			# Create new node
+			new_node = Node(current_node, node_position)
+
+			# Append
+			children.append(new_node)
+
+		# Loop through children
+		for child in children:
+
+			# Child is on the closed list
+			for closed_child in closed_list:
+				if child == closed_child:
+					continue
+
+			# Create the f, g, and h values
+			child.g = current_node.g + 1
+			child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+			child.f = child.g + child.h
+
+		# Child is already in the open list
+		for open_node in open_list:
+			if child == open_node and child.g > open_node.g:
+				continue
+
+		# Add the child to the open list
+		open_list.append(child)
+# END OF THE PATHFINDING ALFORITHM
+
 def MainLoop():
-	global xChange, yChange, Score
+	global xChange, yChange, Score, Frame
 
 	AllSprites = pygame.sprite.RenderPlain()
 	PacDots = pygame.sprite.RenderPlain()
@@ -234,7 +362,7 @@ def MainLoop():
 	Walls = DrawWalls(AllSprites)
 	Gate = DrawGate(AllSprites)
 
-	Pinky = Ghost("Pinky", (252, 270))
+	Pinky = Ghost("Pinky", (200, 270))
 	AllSprites.add(Pinky)
 
 	Blinky = Ghost("Blinky", (278, 270))
@@ -247,7 +375,7 @@ def MainLoop():
 	AllSprites.add(Clyde)
 
 
-	Player = PacMan()
+	Player = PacMan(287, 439)
 	AllSprites.add(Player)
 
 
@@ -302,22 +430,22 @@ def MainLoop():
 				if event.key == pygame.K_LEFT:
 					CalcRota(Player, 'Left')
 					Player.direction = 'Left'
-					xChange = -5
+					xChange = -30
 
 				elif event.key == pygame.K_RIGHT:
 					CalcRota(Player, 'Right')
 					Player.direction = 'Right'
-					xChange = 5
+					xChange = 30
 
 				elif event.key == pygame.K_UP:
 					CalcRota(Player, 'Up')
 					Player.direction = 'Up'
-					yChange = -5
+					yChange = -30
 
 				elif event.key == pygame.K_DOWN:
 					CalcRota(Player, 'Down')
 					Player.direction = 'Down'
-					yChange = 5
+					yChange = 30
 
 			elif event.type == pygame.KEYUP:
 				if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
@@ -326,7 +454,8 @@ def MainLoop():
 				elif event.key == pygame.K_UP or event.key == pygame.K_DOWN:
 					yChange = 0
 
-		
+		Frame += 1
+
 		# See if the Pacman block has collided with anything.
 		PacdotHit = pygame.sprite.spritecollide(Player, PacDots, True)
 		
@@ -344,7 +473,10 @@ def MainLoop():
 		BlitText(f"Score: {Score}", 12, (450, 10), 'Resources/emulogic.ttf',PURPLE)
 		AllSprites.draw(SCREEN)
 		pygame.display.flip()
-		CLOCK.tick(60)
+		CLOCK.tick(10)
 
 if __name__ == '__main__':
 	MainLoop()
+
+ImportWalls()
+MakeWallAStar(WallCoords)
