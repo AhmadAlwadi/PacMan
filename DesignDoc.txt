@@ -36,3 +36,14 @@ Ghost class:
 
 =============================End Of Class Design===============================
 
+=============================Path Finding Design===============================
+--> Get pacman & ghost coordinates
+--> When ghost hits a 'turning point' i.e. wall/gate
+	--> Evaluate turning options [UP, DOWN, LEFT, RIGHT]
+	--> Calculate the angle between the pacman & ghost
+		--> The ghost being the point of origin
+	--> Then see what quadrant the pacman is in
+	--> Respectively, prioritise specific directions
+		--> Check which directions are viable
+		--> Go in the first viable direction
+=================================End Of Design=================================

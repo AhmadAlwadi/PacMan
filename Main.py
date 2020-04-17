@@ -1,5 +1,7 @@
 import pygame, time, sys, random, math, json
 from pygame.locals import *
+from math import atan2, degrees, pi
+
 
 # Defining colors
 BLACK = (0, 0, 0)
@@ -66,7 +68,7 @@ class PacMan(pygame.sprite.Sprite):
 		
 		# Check if the x axis is colliding with any walls 
 		if XCollision:	
-			# Reset thwe x axis on the pacman
+			# Reset the x axis on the pacman
 			self.rect.left = self.CurrentX
 		else:
 			self.rect.top = NewY
@@ -75,6 +77,9 @@ class PacMan(pygame.sprite.Sprite):
 			if YCollision:
 				# Reset the y axis on the pacman
 				self.rect.top = self.CurrentY
+			else:
+				# Updating the pacman position
+				self.position = (self.rect.left, self.rect.top)
 
 		if gate != False:
 			gate_hit = pygame.sprite.spritecollide(self, gate, False)
@@ -84,8 +89,8 @@ class PacMan(pygame.sprite.Sprite):
 
 
 
-class Ghost(PacMan):
-	def __init__(self, name, coord):
+class Ghost(pygame.sprite.Sprite):
+	def __init__(self, name, coord, speed):
 		pygame.sprite.Sprite.__init__(self)
 
 		ImagePath = f"Resources/{name.strip()}.png"
@@ -93,12 +98,107 @@ class Ghost(PacMan):
 		self.image = pygame.transform.scale(self.image, (24, 24))
 
 		self.rect = self.image.get_rect()
-		self.rect.x = coord[0]
-		self.rect.y = coord[1]
+		self.rect.left = coord[0]
+		self.rect.top = coord[1]
 
-	def GetPath(self):
-		PathList = AStarAlgo()
+		self.position = (self.rect.left, self.rect.top)
 
+		self.speed = speed
+		self.direction = ''
+
+		self.xSpeed = 0
+		self.ySpeed = 0
+
+	def update(self, playerPos, walls):
+		
+		# Check if the ghost hit a wall first
+		if self.Checkcollision(walls):
+			NextDir = Pathfinding(playerPos, self.position, self, walls, self.speed)
+
+			if NextDir == 'RIGHT':
+				self.rect.left += self.speed
+			
+			elif NextDir == 'LEFT':
+				self.rect.left -= self.speed
+			
+			elif NextDir == 'UP':
+				self.rect.top -= self.speed
+			
+			elif NextDir == 'DOWN':
+				self.rect.top += self.speed
+
+		elif Frame%2==0:
+			NextDir = Pathfinding(playerPos, self.position, self, walls, self.speed)
+
+			if NextDir == 'RIGHT':
+				self.rect.left += self.speed
+			
+			elif NextDir == 'LEFT':
+				self.rect.left -= self.speed
+			
+			elif NextDir == 'UP':
+				self.rect.top -= self.speed
+			
+			elif NextDir == 'DOWN':
+				self.rect.top += self.speed
+
+		self.rect.left += self.xSpeed
+		self.rect.top += self.ySpeed
+
+
+
+		# Update the position
+		self.position = (self.rect.left, self.rect.top)		
+
+	def Checkcollision(self, walls):
+		xSpeed = 0
+		ySpeed = 0
+
+		if self.direction == 'RIGHT':
+			self.xSpeed = self.speed
+
+		elif self.direction == 'LEFT':
+			self.xSpeed -= self.speed
+
+		elif self.direction == 'UP':
+			self.ySpeed -= self.speed
+
+		elif self.direction == 'DOWN':
+			self.ySpeed = self.speed
+
+		# Making a backup of the values
+		CurrentX = self.rect.left
+		CurrentY = self.rect.top
+
+		# Changing the values and updating the position
+		NewX = CurrentX + xSpeed
+		NewY = CurrentY + ySpeed
+
+		self.rect.left = NewX
+
+		# Check for collision
+		XCollision = pygame.sprite.spritecollide(self, walls, False)
+		
+		# Check if the x axis is colliding with any walls 
+		if XCollision:	
+			# Reset the x axis on the ghost
+			self.rect.left = CurrentX
+			self.xSpeed = 0
+			return True
+		else:
+			self.rect.top = NewY
+			# Check for a vertical collision
+			YCollision = pygame.sprite.spritecollide(self, walls, False)
+			if YCollision:
+				# Reset the y axis on the ghost
+				self.rect.top = CurrentY
+				self.ySpeed = 0
+				return True
+			else:
+				# Resetting the values to their original values till the ghost gets a new direction
+				self.rect.left = CurrentX
+				self.rect.top = CurrentY
+				return False
 
 # This class to blit text on screen
 class Text:
@@ -180,7 +280,7 @@ def DrawGate(AllSprites):
 def LoadMusic(TrackName):
 	if not (pygame.mixer.music.get_busy()):
 		pygame.mixer.music.load(f"Resources/{TrackName}.wav")
-		pygame.mixer.music.set_volume(0.3)
+		pygame.mixer.music.set_volume(0.0)
 		pygame.mixer.music.play(0)
 
 # This function handles all the text blitting
@@ -237,119 +337,157 @@ def CalcRota(pacman, NextDir):
 
 # ALL THE PATHFINDING ALGORITHM CODE SHOULD GO HERE 
 
-# First of all I have to change the coordinates into an A* friendly format
-def MakeWallAStar(arr):
-	ScreenArr = [[0 for j in range(0, 606)] for i in range(0, 606)]
+def Pathfinding(pacmanPosition, ghostPosition, ghost, walls, speed):
 
-	x1, x2, y1, y2 = 0, 0, 0, 0
-	for z in arr:
-		print(z)
-		x1, y1, x2, y2 = z[0], z[1], z[2], z[3]
-		for i in range(x1, x2):
-			for j in range(y1, y2):
-				ScreenArr[i][j] = 1
+	ViableDirs = GetViableDirections(ghostPosition, ghost, walls, speed)
+	angle = CalcAngle(pacmanPosition, ghostPosition)
+	quad = CalcQuadrant(angle)
+	prioritisedDirections = PrioetiseDirs(quad)
 
-	f = open("Pixels.txt", "w")
-	for i in ScreenArr:
-		f.write(str(i))
+	runLoop = True
+	
+	while runLoop:
+		for i in prioritisedDirections:
+			for j in ViableDirs:
+				if i == j:
+					finalDir = i
+					runLoop = False
+		randomDir = random.choice(ViableDirs)
+		finalDir = randomDir
+		runLoop = False
+	
+	#print(ViableDirs, angle, quad, prioritisedDirections, finalDir)	
+	return finalDir
+
+def GetViableDirections(ghostPosition, ghost, walls, speed):
+	x, y = ghostPosition[0], ghostPosition[1]
+
+	directions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+
+	# Use sprite collision to see if they have collided
+	for i in range (0, len(directions)-1):
+		if i == 0:
+			ghost.rect.top = y - speed
+			# Check for a vertical collision
+			YCollision = pygame.sprite.spritecollide(ghost, walls, False)
+
+			if YCollision:
+				# Reset the y axis on the pacman
+				ghost.rect.top = y
+				directions.remove('UP')
+			else:
+				# Updating the pacman position
+				ghost.position = (ghost.rect.left, ghost.rect.top)
+
+		elif i == 1:
+			ghost.rect.top = y + speed
+			# Check for a vertical collision
+			YCollision = pygame.sprite.spritecollide(ghost, walls, False)
+
+			if YCollision:
+				# Reset the y axis on the pacman
+				ghost.rect.top = y
+				directions.remove('DOWN')
+			else:
+				# Updating the pacman position
+				ghost.position = (ghost.rect.left, ghost.rect.top)
+
+		elif i == 2:
+			ghost.rect.left = x - speed
+
+			# Check for collision
+			XCollision = pygame.sprite.spritecollide(ghost, walls, False)
+			
+			# Check if the x axis is colliding with any walls 
+			if XCollision:	
+				# Reset the x axis on the pacman
+				ghost.rect.left = x
+				directions.remove('LEFT')
+
+			else:
+				ghost.rect.top = y 
+				# Check for a vertical collision
+				YCollision = pygame.sprite.spritecollide(ghost, walls, False)
+
+				if YCollision:
+					# Reset the y axis on the pacman
+					ghost.rect.top = y
+					directions.remove('LEFT')
+				else:
+					# Updating the pacman position
+					ghost.position = (ghost.rect.left, ghost.rect.top)
+
+		elif i == 3:
+			ghost.rect.left = x + speed
+
+			# Check for collision
+			XCollision = pygame.sprite.spritecollide(ghost, walls, False)
+			
+			# Check if the x axis is colliding with any walls 
+			if XCollision:	
+				# Reset the x axis on the pacman
+				ghost.rect.left = x
+				directions.remove('RIGHT')
+			else:
+				ghost.rect.top = y 
+				# Check for a vertical collision
+				YCollision = pygame.sprite.spritecollide(ghost, walls, False)
+
+				if YCollision:
+					# Reset the y axis on the pacman
+					ghost.rect.top = y
+					directions.remove('RIGHT')
+
+		ghost.position = ghostPosition
+
+	return directions
+
+def CalcAngle(pacmanPosition, ghostPosition):
+	x1, y1, x2, y2 = pacmanPosition[0], pacmanPosition[1], ghostPosition[0], ghostPosition[1]
+
+	dx = x2 - x1
+	dy = y2 - y1
+
+	rads = atan2(-dx,dy)
+	rads %= 2*pi
+
+	degs = degrees(rads)
+	print(degs)
+
+	return degs
+
+def CalcQuadrant(angle):
+
+	if angle >=0 and angle <= 90:
+		quad = 1
+
+	elif angle >90 and angle <= 180:
+		quad = 2
+
+	elif angle >180 and angle <= 270:
+		quad = 3
+
+	elif angle >270 and angle <= 360:
+		quad = 4
+
+	return quad
+
+def PrioetiseDirs(quad):
+	if quad == 1:
+		directions = ['UP', 'RIGHT', 'DOWN', 'LEFT']
+
+	elif quad == 2:
+		directions = ['DOWN', 'RIGHT', 'UP', 'LEFT']
+
+	elif quad == 3:
+		directions = ['DOWN', 'LEFT', 'UP', 'RIGHT']
+
+	elif quad == 4:
+		directions = ['UP', 'LEFT', 'DOWN', 'RIGHT']
+
+	return directions
 
 
-
-class Node():
-	"""A node class for A* Pathfinding"""
-
-	def __init__(self, parent=None, position=None):
-		self.parent = parent
-		self.position = position
-
-		self.g = 0
-		self.h = 0
-		self.f = 0
-
-	def __eq__(self, other):
-		return self.position == other.position
-
-def AStarAlgo(maze, start, end):
-	"""Returns a list of tuples as a path from the given start to the given end in the given maze"""
-
-	# Create start and end node
-	start_node = Node(None, start)
-	start_node.g = start_node.h = start_node.f = 0
-	end_node = Node(None, end)
-	end_node.g = end_node.h = end_node.f = 0
-
-	# Initialize both open and closed list
-	open_list = []
-	closed_list = []
-
-	# Add the start node
-	open_list.append(start_node)
-
-	# Loop until you find the end
-	while len(open_list) > 0:
-
-		# Get the current node
-		current_node = open_list[0]
-		current_index = 0
-		for index, item in enumerate(open_list):
-			if item.f < current_node.f:
-				current_node = item
-				current_index = index
-
-		# Pop current off open list, add to closed list
-		open_list.pop(current_index)
-		closed_list.append(current_node)
-
-		# Found the goal
-		if current_node == end_node:
-			path = []
-			current = current_node
-			while current is not None:
-				path.append(current.position)
-				current = current.parent
-			return path[::-1] # Return reversed path
-
-		# Generate children
-		children = []
-		for new_position in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]: # Adjacent squares
-
-			# Get node position
-			node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
-
-			# Make sure within range
-			if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (len(maze[len(maze)-1]) -1) or node_position[1] < 0:
-				continue
-
-			# Make sure walkable terrain
-			if maze[node_position[0]][node_position[1]] != 0:
-				continue
-
-			# Create new node
-			new_node = Node(current_node, node_position)
-
-			# Append
-			children.append(new_node)
-
-		# Loop through children
-		for child in children:
-
-			# Child is on the closed list
-			for closed_child in closed_list:
-				if child == closed_child:
-					continue
-
-			# Create the f, g, and h values
-			child.g = current_node.g + 1
-			child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
-			child.f = child.g + child.h
-
-		# Child is already in the open list
-		for open_node in open_list:
-			if child == open_node and child.g > open_node.g:
-				continue
-
-		# Add the child to the open list
-		open_list.append(child)
 # END OF THE PATHFINDING ALFORITHM
 
 def MainLoop():
@@ -362,16 +500,16 @@ def MainLoop():
 	Walls = DrawWalls(AllSprites)
 	Gate = DrawGate(AllSprites)
 
-	Pinky = Ghost("Pinky", (200, 270))
+	Pinky = Ghost("Pinky", (200, 270), 2)
 	AllSprites.add(Pinky)
 
-	Blinky = Ghost("Blinky", (278, 270))
+	Blinky = Ghost("Blinky", (278, 270), 3)
 	AllSprites.add(Blinky)
 
-	Inky = Ghost("Inky", (304, 270))
+	Inky = Ghost("Inky", (304, 270), 2)
 	AllSprites.add(Inky)
 
-	Clyde = Ghost("Clyde", (330, 270))
+	Clyde = Ghost("Clyde", (330, 270), 4)
 	AllSprites.add(Clyde)
 
 
@@ -467,13 +605,18 @@ def MainLoop():
 		# Update
 		#AllSprites.update()
 		Player.update(Walls, Gate)
+		Inky.update(Player.position, Walls)
+		Clyde.update(Player.position, Walls)
+		Blinky.update(Player.position, Walls)
+		Pinky.update(Player.position, Walls)
+
 
 		# Render
 		SCREEN.fill(BLACK)
 		BlitText(f"Score: {Score}", 12, (450, 10), 'Resources/emulogic.ttf',PURPLE)
 		AllSprites.draw(SCREEN)
 		pygame.display.flip()
-		CLOCK.tick(10)
+		CLOCK.tick(60)
 
 if __name__ == '__main__':
 	MainLoop()

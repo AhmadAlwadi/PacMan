@@ -1,3 +1,11 @@
+'''
+--> Make own AStar algo
+--> Connections between turns & walls 
+--> Start with ghosts & then pacman
+--> Try optimise 
+--> Divide the screen by the ghost size as we its not 1 pixel
+'''
+
 # ALL THE PATHFINDING ALGORITHM CODE SHOULD GO HERE 
 class Node():
     """A node class for A* Pathfinding"""
@@ -98,7 +106,8 @@ if f.mode == 'r':
 start = (330, 270)
 end = (287, 439)
 
-print(AStarAlgo(walls, start, end))
+solutions = AStarAlgo(walls, start, end)
+print(solutions)
 
 '''Walls:
 "Walls":[
@@ -142,36 +151,3 @@ print(AStarAlgo(walls, start, end))
       	[360,540,126,6]
       	]
 '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
